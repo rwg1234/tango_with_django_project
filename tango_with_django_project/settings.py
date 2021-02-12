@@ -130,3 +130,5 @@ STATICFILES_DIRS = [STATIC_DIR, ]
 MEDIA_ROOT = MEDIA_DIR
 MEDIA_URL = '/media/'
 
+# login url from chapter 9
+LOGIN_URL = 'rango:login'

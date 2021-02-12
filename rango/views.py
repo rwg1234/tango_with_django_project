@@ -2,9 +2,11 @@ from django.shortcuts import render
 from django.http import HttpResponse
 from rango.models import Category
 from rango.models import Page
-from rango.forms import CategoryForm, PageForm
+from rango.forms import CategoryForm, PageForm, UserForm, UserProfileForm
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 
 def index(request):
     # Query the database for a list of ALL categories currently stored.
@@ -85,7 +87,7 @@ def add_page(request, category_name_slug):
     
     # you can't add a page to a Category that doesn't exist
     if category is None:
-        return redirect('/rango/')
+        return redirect(reverse('rango:index'))
     
     form = PageForm()
     
@@ -107,6 +109,84 @@ def add_page(request, category_name_slug):
     
     context_dict = {'form': form, 'category': category}
     return render(request, 'rango/add_page.html', context=context_dict)
+
+def register(request):
+    registered = False
+    
+    if request.method == 'POST':
+        user_form = UserForm(request.POST)
+        profile_form = UserProfileForm(request.POST)
+        
+        if user_form.is_valid() and profile_form.is_valid():
+            user = user_form.save()
+            user.set_password(user.password)
+            user.save()
+            
+            profile = profile_form.save(commit=False)
+            profile.user = user
+            
+            if 'picture' in request.FILES:
+                profile.picture = request.FILES['picture']
+            
+            profile.save()
+            
+            registered = True
+        else:
+            print(user_form.errors, profile_form.errors)
+    else:
+        # not http post
+        user_form = UserForm()
+        profile_form = UserProfileForm()
+    
+    return render(request, 'rango/register.html', context={'user_form': user_form,
+                                                           'profile_form': profile_form,
+                                                           'registered': registered})
+
+def user_login(request):
+    # if it's a POST, receive information
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        # check if the credentials are correct
+        user = authenticate(username=username, password=password)
+        
+        # if the creds are correct, user is a User object.
+        # otherwise, user is None.
+        
+        if user:
+            # check if the user is active (not deactivated)
+            if user.is_active:
+                #if the account is valid and active then we can login
+                login(request, user)
+                return redirect(reverse('rango:index'))
+            else:
+                # not logging in a deactivated user
+                return HttpResponse("Your Rango account is disabled.")
+        else:
+            # bad login details.
+            print(f"Invalid login details: {username}, {password}")
+            # isn't this a vulnerability? if a user mistypes their password, should their almost-password be stored in plaintext in the server logs??
+            return HttpResponse("Invalid login details supplied.")
+    else:
+        # not a post request (probably GET)
+        # just show login form
+        return render(request, 'rango/login.html')
+
+@login_required
+def restricted(request):
+    return HttpResponse("Since you're logged in, you can see this text!")
+
+@login_required
+def user_logout(request):
+    # since we know the user is logged in, we can just log them out
+    logout(request)
+    # take the user back to the homepage
+    return redirect(reverse('rango:index'))
+
+
+
+
 
 
 
